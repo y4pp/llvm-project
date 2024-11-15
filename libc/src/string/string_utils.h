@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // Standalone string utility functions. Utilities requiring memory allocations
-// should be placed in allocating_string_utils.h intead.
+// should be placed in allocating_string_utils.h instead.
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,7 +19,7 @@
 #include "src/__support/macros/optimization.h" // LIBC_UNLIKELY
 #include "src/string/memory_utils/inline_bzero.h"
 #include "src/string/memory_utils/inline_memcpy.h"
-#include <stddef.h> // For size_t
+#include <stddef.h>
 
 namespace LIBC_NAMESPACE_DECL {
 namespace internal {
@@ -61,18 +61,14 @@ template <typename Word> LIBC_INLINE constexpr bool has_zeroes(Word block) {
 template <typename Word>
 LIBC_INLINE size_t string_length_wide_read(const char *src) {
   const char *char_ptr = src;
-  // Step 1: read 1 byte at a time to align to block size
-  for (; reinterpret_cast<uintptr_t>(char_ptr) % sizeof(Word) != 0;
-       ++char_ptr) {
+  for (; reinterpret_cast<uintptr_t>(char_ptr) % sizeof(Word) != 0; ++char_ptr) {
     if (*char_ptr == '\0')
       return char_ptr - src;
   }
-  // Step 2: read blocks
   for (const Word *block_ptr = reinterpret_cast<const Word *>(char_ptr);
        !has_zeroes<Word>(*block_ptr); ++block_ptr) {
     char_ptr = reinterpret_cast<const char *>(block_ptr);
   }
-  // Step 3: find the zero in the block
   for (; *char_ptr != '\0'; ++char_ptr) {
     ;
   }
@@ -80,8 +76,8 @@ LIBC_INLINE size_t string_length_wide_read(const char *src) {
 }
 
 LIBC_INLINE size_t string_length_byte_read(const char *src) {
-  size_t length;
-  for (length = 0; *src; ++src, ++length)
+  size_t length = 0;
+  for (; *src; ++src, ++length)
     ;
   return length;
 }
@@ -90,10 +86,6 @@ LIBC_INLINE size_t string_length_byte_read(const char *src) {
 // of a null terminator.
 LIBC_INLINE size_t string_length(const char *src) {
 #ifdef LIBC_COPT_STRING_UNSAFE_WIDE_READ
-  // Unsigned int is the default size for most processors, and on x86-64 it
-  // performs better than larger sizes when the src pointer can't be assumed to
-  // be aligned to a word boundary, so it's the size we use for reading the
-  // string a block at a time.
   return string_length_wide_read<unsigned int>(src);
 #else
   return string_length_byte_read(src);
@@ -105,31 +97,22 @@ LIBC_INLINE void *find_first_character_wide_read(const unsigned char *src,
                                                  unsigned char ch, size_t n) {
   const unsigned char *char_ptr = src;
   size_t cur = 0;
-
-  // Step 1: read 1 byte at a time to align to block size
   for (; reinterpret_cast<uintptr_t>(char_ptr) % sizeof(Word) != 0 && cur < n;
        ++char_ptr, ++cur) {
     if (*char_ptr == ch)
       return const_cast<unsigned char *>(char_ptr);
   }
-
   const Word ch_mask = repeat_byte<Word>(ch);
-
-  // Step 2: read blocks
   for (const Word *block_ptr = reinterpret_cast<const Word *>(char_ptr);
        !has_zeroes<Word>((*block_ptr) ^ ch_mask) && cur < n;
        ++block_ptr, cur += sizeof(Word)) {
     char_ptr = reinterpret_cast<const unsigned char *>(block_ptr);
   }
-
-  // Step 3: find the match in the block
   for (; *char_ptr != ch && cur < n; ++char_ptr, ++cur) {
     ;
   }
-
   if (*char_ptr != ch || cur >= n)
     return static_cast<void *>(nullptr);
-
   return const_cast<unsigned char *>(char_ptr);
 }
 
@@ -145,13 +128,6 @@ LIBC_INLINE void *find_first_character_byte_read(const unsigned char *src,
 LIBC_INLINE void *find_first_character(const unsigned char *src,
                                        unsigned char ch, size_t max_strlen) {
 #ifdef LIBC_COPT_STRING_UNSAFE_WIDE_READ
-  // If the maximum size of the string is small, the overhead of aligning to a
-  // word boundary and generating a bitmask of the appropriate size may be
-  // greater than the gains from reading larger chunks. Based on some testing,
-  // the crossover point between when it's faster to just read bytewise and read
-  // blocks is somewhere between 16 and 32, so 4 times the size of the block
-  // should be in that range.
-  // Unsigned int is used for the same reason as in strlen.
   using BlockType = unsigned int;
   if (max_strlen > (sizeof(BlockType) * 4)) {
     return find_first_character_wide_read<BlockType>(src, ch, max_strlen);
@@ -165,7 +141,6 @@ LIBC_INLINE void *find_first_character(const unsigned char *src,
 LIBC_INLINE size_t complementary_span(const char *src, const char *segment) {
   const char *initial = src;
   cpp::bitset<256> bitset;
-
   for (; *segment; ++segment)
     bitset.set(*reinterpret_cast<const unsigned char *>(segment));
   for (; *src && !bitset.test(*reinterpret_cast<const unsigned char *>(src));
@@ -187,14 +162,11 @@ template <bool SkipDelim = true>
 LIBC_INLINE char *string_token(char *__restrict src,
                                const char *__restrict delimiter_string,
                                char **__restrict saveptr) {
-  // Return nullptr immediately if both src AND saveptr are nullptr
   if (LIBC_UNLIKELY(src == nullptr && ((src = *saveptr) == nullptr)))
     return nullptr;
-
   cpp::bitset<256> delimiter_set;
   for (; *delimiter_string != '\0'; ++delimiter_string)
     delimiter_set.set(*delimiter_string);
-
   if constexpr (SkipDelim)
     for (; *src != '\0' && delimiter_set.test(*src); ++src)
       ;
@@ -251,4 +223,4 @@ LIBC_INLINE constexpr static char *strrchr_implementation(const char *src,
 } // namespace internal
 } // namespace LIBC_NAMESPACE_DECL
 
-#endif //  LLVM_LIBC_SRC_STRING_STRING_UTILS_H
+#endif // LLVM_LIBC_SRC_STRING_STRING_UTILS_H

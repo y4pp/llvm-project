@@ -14,10 +14,15 @@
 
 namespace LIBC_NAMESPACE_DECL {
 
-// TODO: investigate the performance of this function.
-// There might be potential for compiler optimization.
+// his version reads the string in blocks of machine word size for improved performance 
+// while still falling back to a byte-by-byte check for unaligned portions
 LLVM_LIBC_FUNCTION(size_t, strlen, (const char *src)) {
-  return internal::string_length(src);
+  // Use wide read if possible
+#ifdef LIBC_COPT_STRING_UNSAFE_WIDE_READ
+  return internal::string_length_wide_read<unsigned int>(src);
+#else
+  return internal::string_length_byte_read(src);
+#endif
 }
 
 } // namespace LIBC_NAMESPACE_DECL
